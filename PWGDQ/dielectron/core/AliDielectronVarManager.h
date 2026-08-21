@@ -1438,7 +1438,11 @@ inline void AliDielectronVarManager::FillVarAODTrack(const AliAODTrack *particle
 
     values[AliDielectronVarManager::kNclsSITS]     = itsNclsS;
     if(Req(kNclsSMapITS))  values[AliDielectronVarManager::kNclsSMapITS]  = particle->GetITSSharedClusterMap();  //not implemented in AODs
-    if(Req(kNclsSFracITS)) values[AliDielectronVarManager::kNclsSFracITS] = itsNclsS > 0. ? itsNclsS / particle->GetITSNcls() : 0.;
+    if(Req(kNclsSFracITS)) {
+    Double_t itsNcls = particle->GetITSNcls(); 
+    values[AliDielectronVarManager::kNclsSFracITS] = (itsNclsS > 0. && itsNcls > 0.) ? itsNclsS / itsNcls : 0.; // Make sure denominator is not zero
+    }
+    
   }
 
   if(Req(kITSsignalSSD1) || Req(kITSsignalSSD2) || Req(kITSsignalSDD1) || Req(kITSsignalSDD2) ){
@@ -4155,15 +4159,23 @@ inline void AliDielectronVarManager::SetEventData(const Double_t data[AliDielect
 //______________________________________________________________________________
 inline Bool_t AliDielectronVarManager::GetDCA(const AliAODTrack *track, Double_t* d0z0, Double_t* covd0z0)
 {
+
+  // check if AODtrackType is defined - if not, track does not always have covariance matrix stored
+  Bool_t trackTypeDefined = kFALSE;
+  if ( track->TestBit(AliAODTrack::kIsDCA) || track->TestBit(AliAODTrack::kUsedForVtxFit) || track->TestBit(AliAODTrack::kUsedForPrimVtxFit) || track->TestBit(AliAODTrack::kIsTPCConstrained) || track->TestBit(AliAODTrack::kIsHybridTPCCG) || track->TestBit(AliAODTrack::kIsGlobalConstrained) || track->TestBit(AliAODTrack::kIsHybridGCG) ) {
+   trackTypeDefined = kTRUE;
+  }
+  
   if(track->TestBit(AliAODTrack::kIsDCA)){
     d0z0[0]=track->DCA();
     d0z0[1]=track->ZAtDCA();
     // the covariance matrix is not stored in case of AliAODTrack::kIsDCA
     return kTRUE;
   }
+  
 
   Bool_t ok=kFALSE;
-  if(fgEvent) {
+  if(fgEvent && trackTypeDefined) {
     AliExternalTrackParam etp; etp.CopyFromVTrack(track);
 
     Float_t xstart = etp.GetX();
